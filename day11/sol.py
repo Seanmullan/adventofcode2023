@@ -2,67 +2,12 @@ import sys
 import itertools
 from collections import deque
 
-def get_neighbours(grid, node):
-    neighbours = []
-    row, col = node
+part_1 = False
 
-    # Check the top neighbour
-    if row > 0:
-        neighbours.append((row - 1, col))
-
-    # Check the bottom neighbour
-    if row < len(grid) - 1:
-        neighbours.append((row + 1, col))
-
-    # Check the left neighbour
-    if col > 0:
-        neighbours.append((row, col - 1))
-
-    # Check the right neighbour
-    if col < len(grid[0]) - 1:
-        neighbours.append((row, col + 1))
-
-    return neighbours
-
-def get_path(prev, start, end):
-    path = []
-    node = end
-
-    while node != start:
-        path.append(node)
-        node = prev[node]
-
-    path.append(start)
-    path.reverse()
-    return path
-
-def get_shortest_path(grid, start, end):
-    queue = deque()
-    visited = set()
-    distance = {start: 0}
-    prev = {}
-
-    queue.append(start)
-    visited.add(start)
-
-    while queue:
-        node = queue.popleft()
-
-        # Explore the neighbouring nodes
-        for neighbour in get_neighbours(grid, node):
-            if neighbour not in visited:
-                visited.add(neighbour)
-                distance[neighbour] = distance[node] + 1
-                prev[neighbour] = node
-                queue.append(neighbour)
-
-            if neighbour == end:
-                return get_path(prev, start, end)
-
-    return None
+def manhattan(a, b):
+    return sum(abs(val1-val2) for val1, val2 in zip(a,b))
 
 def part1(grid):
-
     galaxy_coords = []
     for row in range(len(grid)):
         for col in range(len(grid[0])):
@@ -71,9 +16,38 @@ def part1(grid):
 
     total = 0
     for pair in itertools.combinations(galaxy_coords, 2):
-        path = get_shortest_path(grid, pair[0], pair[1])
-        total += len(path) - 1
+        path_len = manhattan(pair[0], pair[1])
+        total += path_len
+
     print("Part 1: " + str(total))
+
+
+def part2(grid):
+    galaxy_coords = []
+    for row in range(len(grid)):
+        for col in range(len(grid[0])):
+            if grid[row][col] == '#':
+                galaxy_coords.append((row, col))
+
+    total = 0
+    for pair in itertools.combinations(galaxy_coords, 2):
+        path_len = manhattan(pair[0], pair[1])
+
+        # Find all empty rows between galaxies
+        rows = sorted((pair[0][0], pair[1][0]))
+        for row_idx in range(rows[0] + 1, rows[1]):
+            if grid[row_idx][0] == '0':
+                path_len += 999999
+
+        # Find all empty cols between galaxies
+        cols = sorted((pair[0][1], pair[1][1]))
+        for col_idx in range(cols[0] + 1, cols[1]):
+            if grid[0][col_idx] == '0':
+                path_len += 999999
+
+        total += path_len
+
+    print("Part 2: " + str(total))
 
 
 def add_col(grid, index):
@@ -88,19 +62,32 @@ def main():
     grid = []
     for line in sys.stdin:
         row = list(line.split()[0])
-        grid.append(row)
-        if row == ['.'] * len(row):
+        if part_1:
             grid.append(row)
+            if row == ['.'] * len(row):
+                grid.append(row)
+        else:
+            if row == ['.'] * len(row):
+                grid.append(['0'] * len(row))
+            else:
+                grid.append(row)
 
     new_grid = grid
     offset = 0
     for idx in range(len(grid[0])):
-        col = [row[idx] for row in grid]
-        if col == ['.'] * len(col):
-            new_grid = add_col(new_grid, idx + offset)
-            offset += 1
+        empty = [row[idx] == '.' or row[idx] == '0' for row in grid]
+        if all(empty):
+            if part_1:
+                new_grid = add_col(new_grid, idx + offset)
+                offset += 1
+            else:
+                for row in new_grid:
+                    row[idx] = '0'
 
-    part1(grid)
+    if part_1:
+        part1(new_grid)
+    else:
+        part2(new_grid)
 
 
 if __name__ == "__main__":
