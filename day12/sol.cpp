@@ -75,28 +75,12 @@ bool isValidUpToIndex(const SpringRow& spring_row, const size_t idx)
     bool ended_with_broken = false;
     if (curr_group_size > 0)
     {
-        std::cout << "Ended with broken" << std::endl;
         ended_with_broken = true;
         group_sizes.push_back(curr_group_size);
     }
 
-    std::cout << "Group: ";
-    for (auto v : group_sizes)
+    if (group_sizes.size() != spring_row.groups.size() && idx == spring_row.springs.size())
     {
-        std::cout << v << " ";
-    }
-    std::cout << std::endl;
-
-    std::cout << "Springs: ";
-    for (auto v : spring_row.groups)
-    {
-        std::cout << v << " ";
-    }
-    std::cout << std::endl;
-
-    if (group_sizes.size() > spring_row.groups.size())
-    {
-        std::cout << "F0" << std::endl;
         return false;
     }
 
@@ -104,11 +88,14 @@ bool isValidUpToIndex(const SpringRow& spring_row, const size_t idx)
     {
         if (ended_with_broken && i == group_sizes.size() - 1)
         {
+            if (idx == spring_row.springs.size())
+            {
+                return group_sizes[i] == spring_row.groups[i];
+            }
             return group_sizes[i] <= spring_row.groups[i];
         }
         if (spring_row.groups[i] != group_sizes[i])
         {
-            std::cout << "F2" << std::endl;
             return false;
         }
     }
@@ -118,13 +105,6 @@ bool isValidUpToIndex(const SpringRow& spring_row, const size_t idx)
 
 IntType findNumValidPermutations(const SpringRow& spring_row)
 {
-    std::cout << "\nChecking ..." << std::endl;
-    for (const auto s : spring_row.springs)
-    {
-        std::cout << s;
-    }
-    std::cout << std::endl;
-
     const auto unknown_it = std::find(spring_row.springs.begin(), spring_row.springs.end(), Status::UNKNOWN);
     if (unknown_it == spring_row.springs.end())
     {
@@ -132,7 +112,6 @@ IntType findNumValidPermutations(const SpringRow& spring_row)
     }
 
     const auto unknown_idx = std::distance(spring_row.springs.begin(), unknown_it);
-    std::cout << "Valid: " << isValidUpToIndex(spring_row, unknown_idx) << std::endl;
     if (!isValidUpToIndex(spring_row, unknown_idx))
     {
         return 0;
@@ -149,7 +128,7 @@ IntType findNumValidPermutations(const SpringRow& spring_row)
 void part1(const SpringRows& spring_rows)
 {
     IntType total = 0;
-    for (const auto spring_row : spring_rows)
+    for (const auto& spring_row : spring_rows)
     {
         total += findNumValidPermutations(spring_row);
     }
