@@ -135,6 +135,19 @@ void part1(const SpringRows& spring_rows)
     std::cout << "Part 1: " << total << std::endl;
 }
 
+void part2(const SpringRows& spring_rows)
+{
+    IntType total = 0;
+    size_t num_rows = spring_rows.size();
+    size_t curr_row = 1;
+    for (const auto& spring_row : spring_rows)
+    {
+        std::cout << curr_row++ << " / " << num_rows << std::endl;
+        total += findNumValidPermutations(spring_row);
+    }
+    std::cout << "Part 2: " << total << std::endl;
+}
+
 int main()
 {
     SpringRows spring_rows;
@@ -168,4 +181,22 @@ int main()
     }
 
     part1(spring_rows);
+
+    SpringRows spring_rows_2;
+    for (const auto& spring_row : spring_rows)
+    {
+        SpringRow spring_row_2;
+        for (int i = 0; i < 5; i++)
+        {
+            spring_row_2.springs.insert(spring_row_2.springs.end(), spring_row.springs.begin(), spring_row.springs.end());
+            if (i != 4)
+            {
+                spring_row_2.springs.push_back(Status::UNKNOWN);
+            }
+            spring_row_2.groups.insert(spring_row_2.groups.end(), spring_row.groups.begin(), spring_row.groups.end());
+        }
+        spring_rows_2.push_back(spring_row_2);
+    }
+
+    part2(spring_rows_2);
 }
