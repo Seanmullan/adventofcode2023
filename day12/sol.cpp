@@ -71,20 +71,44 @@ bool isValidUpToIndex(const SpringRow& spring_row, const size_t idx)
             exit(1);
         }
     }
-    if (curr_group_size != 0)
+
+    bool ended_with_broken = false;
+    if (curr_group_size > 0)
     {
+        std::cout << "Ended with broken" << std::endl;
+        ended_with_broken = true;
         group_sizes.push_back(curr_group_size);
     }
 
-    if (spring_row.groups.size() != group_sizes.size())
+    std::cout << "Group: ";
+    for (auto v : group_sizes)
     {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "Springs: ";
+    for (auto v : spring_row.groups)
+    {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
+
+    if (group_sizes.size() > spring_row.groups.size())
+    {
+        std::cout << "F0" << std::endl;
         return false;
     }
 
     for (size_t i = 0; i < group_sizes.size(); i++)
     {
+        if (ended_with_broken && i == group_sizes.size() - 1)
+        {
+            return group_sizes[i] <= spring_row.groups[i];
+        }
         if (spring_row.groups[i] != group_sizes[i])
         {
+            std::cout << "F2" << std::endl;
             return false;
         }
     }
@@ -92,8 +116,15 @@ bool isValidUpToIndex(const SpringRow& spring_row, const size_t idx)
     return true;
 }
 
-IntType findNumValidPermutations(SpringRow spring_row)
+IntType findNumValidPermutations(const SpringRow& spring_row)
 {
+    std::cout << "\nChecking ..." << std::endl;
+    for (const auto s : spring_row.springs)
+    {
+        std::cout << s;
+    }
+    std::cout << std::endl;
+
     const auto unknown_it = std::find(spring_row.springs.begin(), spring_row.springs.end(), Status::UNKNOWN);
     if (unknown_it == spring_row.springs.end())
     {
@@ -101,11 +132,16 @@ IntType findNumValidPermutations(SpringRow spring_row)
     }
 
     const auto unknown_idx = std::distance(spring_row.springs.begin(), unknown_it);
+    std::cout << "Valid: " << isValidUpToIndex(spring_row, unknown_idx) << std::endl;
+    if (!isValidUpToIndex(spring_row, unknown_idx))
+    {
+        return 0;
+    }
 
-    spring_row.springs[unknown_idx] = Status::OPERATIONAL;
-    const auto spring_row_operational = spring_row;
-    spring_row.springs[unknown_idx] = Status::BROKEN;
-    const auto spring_row_broken = spring_row;
+    auto spring_row_operational = spring_row;
+    auto spring_row_broken = spring_row;
+    spring_row_operational.springs[unknown_idx] = Status::OPERATIONAL;
+    spring_row_broken.springs[unknown_idx] = Status::BROKEN;
 
     return findNumValidPermutations(spring_row_operational) + findNumValidPermutations(spring_row_broken);
 }
