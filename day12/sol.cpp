@@ -1,11 +1,15 @@
 #include <algorithm>
 #include <cmath>
+#include <execution>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <numeric>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
+using IntType = long long int;
 enum Status
 {
     OPERATIONAL,
@@ -16,9 +20,44 @@ struct SpringRow
 {
     std::vector<Status> springs;
     std::vector<int> groups;
+
+    bool operator==(const SpringRow& o) const
+    {
+        if (springs.size() != o.springs.size() || groups.size() != o.groups.size())
+        {
+            return false;
+        }
+        for (auto i = 0; i < springs.size(); i++)
+        {
+            if (springs[i] != o.springs[i])
+            {
+                return false;
+            }
+        }
+        for (auto i = 0; i < groups.size(); i++)
+        {
+            if (groups[i] != o.groups[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 using SpringRows = std::vector<SpringRow>;
-using IntType = long long int;
+
+template <>
+struct std::hash<SpringRow>
+{
+    std::size_t operator()(const SpringRow& s) const
+    {
+        std::string spring_str(s.springs.begin(), s.springs.end());
+        std::string groups_str(s.groups.begin(), s.groups.end());
+        std::hash<std::string> hasher;
+        return hasher(spring_str + groups_str);
+    }
+};
+using Cache = std::unordered_map<SpringRow, IntType>;
 
 std::vector<std::string> splitString(const std::string& str, const char separator)
 {
@@ -103,17 +142,25 @@ bool isValidUpToIndex(const SpringRow& spring_row, const size_t idx)
     return true;
 }
 
-IntType findNumValidPermutations(const SpringRow& spring_row)
+IntType findNumValidPermutations(const SpringRow& spring_row, Cache& cache)
 {
+    if (cache.contains(spring_row))
+    {
+        return cache[spring_row];
+    }
+
     const auto unknown_it = std::find(spring_row.springs.begin(), spring_row.springs.end(), Status::UNKNOWN);
     if (unknown_it == spring_row.springs.end())
     {
-        return isValidUpToIndex(spring_row, spring_row.springs.size()) ? 1 : 0;
+        const auto num = isValidUpToIndex(spring_row, spring_row.springs.size()) ? 1 : 0;
+        cache[spring_row] = num;
+        return num;
     }
 
     const auto unknown_idx = std::distance(spring_row.springs.begin(), unknown_it);
     if (!isValidUpToIndex(spring_row, unknown_idx))
     {
+        cache[spring_row] = 0;
         return 0;
     }
 
@@ -122,29 +169,45 @@ IntType findNumValidPermutations(const SpringRow& spring_row)
     spring_row_operational.springs[unknown_idx] = Status::OPERATIONAL;
     spring_row_broken.springs[unknown_idx] = Status::BROKEN;
 
-    return findNumValidPermutations(spring_row_operational) + findNumValidPermutations(spring_row_broken);
+    const auto num =
+        findNumValidPermutations(spring_row_operational, cache) + findNumValidPermutations(spring_row_broken, cache);
+    cache[spring_row] = num;
+    return num;
 }
 
 void part1(const SpringRows& spring_rows)
 {
+    Cache cache;
     IntType total = 0;
     for (const auto& spring_row : spring_rows)
     {
-        total += findNumValidPermutations(spring_row);
+        total += findNumValidPermutations(spring_row, cache);
     }
     std::cout << "Part 1: " << total << std::endl;
 }
 
 void part2(const SpringRows& spring_rows)
 {
+    Cache cache;
     IntType total = 0;
     size_t num_rows = spring_rows.size();
     size_t curr_row = 1;
+    std::mutex mutex;
+
     for (const auto& spring_row : spring_rows)
     {
         std::cout << curr_row++ << " / " << num_rows << std::endl;
-        total += findNumValidPermutations(spring_row);
+        total += findNumValidPermutations(spring_row, cache);
     }
+
+    // std::for_each(std::execution::par, spring_rows.begin(), spring_rows.end(), [&](const auto& spring_row) {
+    //     const auto num = findNumValidPermutations(spring_row);
+    //     mutex.lock();
+    //     std::cout << curr_row++ << " / " << num_rows << std::endl;
+    //     total += num;
+    //     mutex.unlock();
+    // });
+
     std::cout << "Part 2: " << total << std::endl;
 }
 
@@ -188,7 +251,8 @@ int main()
         SpringRow spring_row_2;
         for (int i = 0; i < 5; i++)
         {
-            spring_row_2.springs.insert(spring_row_2.springs.end(), spring_row.springs.begin(), spring_row.springs.end());
+            spring_row_2.springs.insert(spring_row_2.springs.end(), spring_row.springs.begin(),
+                                        spring_row.springs.end());
             if (i != 4)
             {
                 spring_row_2.springs.push_back(Status::UNKNOWN);
