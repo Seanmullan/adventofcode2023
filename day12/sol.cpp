@@ -45,19 +45,30 @@ struct SpringRow
     }
 };
 using SpringRows = std::vector<SpringRow>;
-
-template <>
-struct std::hash<SpringRow>
+struct SpringRowCacheKey
 {
-    std::size_t operator()(const SpringRow& s) const
+    SpringRow spring_row;
+    int curr_group_size;
+
+    bool operator==(const SpringRowCacheKey& o) const
     {
-        std::string spring_str(s.springs.begin(), s.springs.end());
-        std::string groups_str(s.groups.begin(), s.groups.end());
-        std::hash<std::string> hasher;
-        return hasher(spring_str + groups_str);
+        return spring_row == o.spring_row && curr_group_size == o.curr_group_size;
     }
 };
-using Cache = std::unordered_map<SpringRow, IntType>;
+
+template <>
+struct std::hash<SpringRowCacheKey>
+{
+    std::size_t operator()(const SpringRowCacheKey& s) const
+    {
+        std::string spring_str(s.spring_row.springs.begin(), s.spring_row.springs.end());
+        std::string groups_str(s.spring_row.groups.begin(), s.spring_row.groups.end());
+        std::string count_str = std::to_string(s.curr_group_size);
+        std::hash<std::string> hasher;
+        return hasher(spring_str + groups_str + count_str);
+    }
+};
+using Cache = std::unordered_map<SpringRowCacheKey, IntType>;
 
 std::vector<std::string> splitString(const std::string& str, const char separator)
 {
@@ -86,102 +97,76 @@ std::vector<std::string> splitString(const std::string& str, const char separato
     return result;
 }
 
-bool isValidUpToIndex(const SpringRow& spring_row, const size_t idx)
+IntType findNumValidPermutations(const SpringRow& spring_row, Cache& cache, int curr_group_size)
 {
-    std::vector<int> group_sizes;
-    int curr_group_size = 0;
-    for (size_t i = 0; i < idx; i++)
+    SpringRowCacheKey key = { spring_row, curr_group_size };
+    if (cache.contains(key))
     {
-        if (spring_row.springs[i] == Status::OPERATIONAL)
+        return cache[key];
+    }
+
+    if (spring_row.springs.empty())
+    {
+        return spring_row.groups.empty() && curr_group_size == 0;
+    }
+
+    IntType total = 0;
+
+    const auto curr_spring = spring_row.springs.front();
+    const std::vector<Status> next_springs(std::next(spring_row.springs.begin()), spring_row.springs.end());
+
+    std::vector<Status> to_search;
+    if (curr_spring == Status::UNKNOWN)
+    {
+        to_search.push_back(Status::BROKEN);
+        to_search.push_back(Status::OPERATIONAL);
+    }
+    else
+    {
+        to_search.push_back(curr_spring);
+    }
+
+    for (const auto curr_status : to_search)
+    {
+        if (curr_status == Status::BROKEN)
         {
-            if (curr_group_size != 0)
+            // If group is still valid
+            if (!spring_row.groups.empty() && curr_group_size < spring_row.groups.front())
             {
-                group_sizes.push_back(curr_group_size);
-                curr_group_size = 0;
+                SpringRow new_row = { next_springs, spring_row.groups };
+                total += findNumValidPermutations(new_row, cache, curr_group_size + 1);
             }
         }
-        else if (spring_row.springs[i] == Status::BROKEN)
+        // If curr_status == OPERATIONAL and still in damaged group
+        else if (curr_group_size > 0)
         {
-            curr_group_size++;
+            // and the damaged group matches the current group in the provided patterns
+            if (!spring_row.groups.empty() && curr_group_size == spring_row.groups.front())
+            {
+                const std::vector<int> next_groups(std::next(spring_row.groups.begin()), spring_row.groups.end());
+                SpringRow new_row = { next_springs, next_groups };
+                total += findNumValidPermutations(new_row, cache, 0);
+            }
         }
         else
         {
-            std::cout << "Found UNKNOWN in spring row?" << std::endl;
-            exit(1);
+            SpringRow new_row = { next_springs, spring_row.groups };
+            total += findNumValidPermutations(new_row, cache, 0);
         }
     }
 
-    bool ended_with_broken = false;
-    if (curr_group_size > 0)
-    {
-        ended_with_broken = true;
-        group_sizes.push_back(curr_group_size);
-    }
-
-    if (group_sizes.size() != spring_row.groups.size() && idx == spring_row.springs.size())
-    {
-        return false;
-    }
-
-    for (size_t i = 0; i < group_sizes.size(); i++)
-    {
-        if (ended_with_broken && i == group_sizes.size() - 1)
-        {
-            if (idx == spring_row.springs.size())
-            {
-                return group_sizes[i] == spring_row.groups[i];
-            }
-            return group_sizes[i] <= spring_row.groups[i];
-        }
-        if (spring_row.groups[i] != group_sizes[i])
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-IntType findNumValidPermutations(const SpringRow& spring_row, Cache& cache)
-{
-    if (cache.contains(spring_row))
-    {
-        return cache[spring_row];
-    }
-
-    const auto unknown_it = std::find(spring_row.springs.begin(), spring_row.springs.end(), Status::UNKNOWN);
-    if (unknown_it == spring_row.springs.end())
-    {
-        const auto num = isValidUpToIndex(spring_row, spring_row.springs.size()) ? 1 : 0;
-        cache[spring_row] = num;
-        return num;
-    }
-
-    const auto unknown_idx = std::distance(spring_row.springs.begin(), unknown_it);
-    if (!isValidUpToIndex(spring_row, unknown_idx))
-    {
-        cache[spring_row] = 0;
-        return 0;
-    }
-
-    auto spring_row_operational = spring_row;
-    auto spring_row_broken = spring_row;
-    spring_row_operational.springs[unknown_idx] = Status::OPERATIONAL;
-    spring_row_broken.springs[unknown_idx] = Status::BROKEN;
-
-    const auto num =
-        findNumValidPermutations(spring_row_operational, cache) + findNumValidPermutations(spring_row_broken, cache);
-    cache[spring_row] = num;
-    return num;
+    cache[key] = total;
+    return total;
 }
 
 void part1(const SpringRows& spring_rows)
 {
     Cache cache;
     IntType total = 0;
-    for (const auto& spring_row : spring_rows)
+    for (auto spring_row : spring_rows)
     {
-        total += findNumValidPermutations(spring_row, cache);
+        spring_row.springs.push_back(Status::OPERATIONAL);
+        total += findNumValidPermutations(spring_row, cache, 0);
     }
     std::cout << "Part 1: " << total << std::endl;
 }
@@ -190,24 +175,11 @@ void part2(const SpringRows& spring_rows)
 {
     Cache cache;
     IntType total = 0;
-    size_t num_rows = spring_rows.size();
-    size_t curr_row = 1;
-    std::mutex mutex;
-
-    for (const auto& spring_row : spring_rows)
+    for (auto spring_row : spring_rows)
     {
-        std::cout << curr_row++ << " / " << num_rows << std::endl;
-        total += findNumValidPermutations(spring_row, cache);
+        spring_row.springs.push_back(Status::OPERATIONAL);
+        total += findNumValidPermutations(spring_row, cache, 0);
     }
-
-    // std::for_each(std::execution::par, spring_rows.begin(), spring_rows.end(), [&](const auto& spring_row) {
-    //     const auto num = findNumValidPermutations(spring_row);
-    //     mutex.lock();
-    //     std::cout << curr_row++ << " / " << num_rows << std::endl;
-    //     total += num;
-    //     mutex.unlock();
-    // });
-
     std::cout << "Part 2: " << total << std::endl;
 }
 
