@@ -130,17 +130,14 @@ IntType findNumValidPermutations(const SpringRow& spring_row, Cache& cache, int 
     {
         if (curr_status == Status::BROKEN)
         {
-            // If group is still valid
             if (!spring_row.groups.empty() && curr_group_size < spring_row.groups.front())
             {
                 SpringRow new_row = { next_springs, spring_row.groups };
                 total += findNumValidPermutations(new_row, cache, curr_group_size + 1);
             }
         }
-        // If curr_status == OPERATIONAL and still in damaged group
         else if (curr_group_size > 0)
         {
-            // and the damaged group matches the current group in the provided patterns
             if (!spring_row.groups.empty() && curr_group_size == spring_row.groups.front())
             {
                 const std::vector<int> next_groups(std::next(spring_row.groups.begin()), spring_row.groups.end());
